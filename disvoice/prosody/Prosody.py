@@ -362,6 +362,37 @@ class Prosody:
             (F0_features, energy_featuresV, energy_featuresU, duration_features))
 
         return features
+    
+    def getPitch(self, audio):
+       fs, data_audio = read(audio)
+
+        if len(data_audio.shape)>1:
+            data_audio = data_audio.mean(1)
+        data_audio = data_audio-np.mean(data_audio)
+        data_audio = data_audio/float(np.max(np.abs(data_audio)))
+        size_frameS = self.size_frame*float(fs)
+        size_stepS = self.step*float(fs)
+        thr_len_pause = self.thr_len*float(fs)
+
+        if self.pitch_method == 'praat':
+            name_audio = audio.split('/')
+            temp_uuid = 'prosody'+name_audio[-1][0:-4]
+            if not os.path.exists(PATH+'/../tempfiles/'):
+                os.makedirs(PATH+'/../tempfiles/')
+            temp_filename_f0 = PATH+'/../tempfiles/tempF0'+temp_uuid+'.txt'
+            temp_filename_vuv = PATH+'/../tempfiles/tempVUV'+temp_uuid+'.txt'
+            praat_functions.praat_vuv(audio, temp_filename_f0, temp_filename_vuv,
+                                      time_stepF0=self.step, minf0=self.minf0, maxf0=self.maxf0)
+
+            F0, _ = praat_functions.decodeF0(
+                temp_filename_f0, len(data_audio)/float(fs), self.step)
+            os.remove(temp_filename_f0)
+            os.remove(temp_filename_vuv)
+        elif self.pitch_method == 'rapt':
+            data_audiof = np.asarray(data_audio*(2**15), dtype=np.float32)
+            F0 = pysptk.sptk.rapt(data_audiof, fs, int(
+                size_stepS), min=self.minf0, max=self.maxf0, voice_bias=self.voice_bias, otype='f0')
+            return F0
 
     def prosody_dynamic(self, audio):
         """Extract the dynamic prosody features from an audio file
